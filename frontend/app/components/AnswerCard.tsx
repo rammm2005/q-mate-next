@@ -26,6 +26,8 @@ export interface AnswerCardProps {
     indobert_sources: SourceReferenceData[];
     evaluation: string;
   } | null;
+  isCollapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
 /**
@@ -189,9 +191,14 @@ export default function AnswerCard({
   onToggle,
   mode = "bm25",
   comparison = null,
+  isCollapsed: controlledCollapsed,
+  onCollapsedChange,
 }: AnswerCardProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<"answer" | "retrieval" | "evaluation">("answer");
+
+  // Use controlled collapsed state if provided, otherwise use internal state
+  const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
 
   useEffect(() => {
     if (onToggle && !isCollapsed) {
@@ -206,7 +213,14 @@ export default function AnswerCard({
 
   const handleToggle = () => {
     const nextCollapsed = !isCollapsed;
-    setIsCollapsed(nextCollapsed);
+    
+    // Update state based on whether it's controlled or uncontrolled
+    if (onCollapsedChange) {
+      onCollapsedChange(nextCollapsed);
+    } else {
+      setInternalCollapsed(nextCollapsed);
+    }
+    
     if (onToggle) {
       // Wait a tiny fraction of a second for DOM layout to adjust before scrolling
       setTimeout(() => {

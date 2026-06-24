@@ -103,6 +103,7 @@ export default function Home() {
   const [history, setHistory] = useState<QAPair[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedAnswerId, setExpandedAnswerId] = useState<string | null>(null);
 
   // Toast notification state
   interface ToastItem {
@@ -289,6 +290,9 @@ export default function Home() {
           : updated;
       });
 
+      // Auto-expand the newly added answer
+      setExpandedAnswerId(newPair.id);
+
       setQuestion("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -446,6 +450,10 @@ export default function Home() {
               onToggle={() => {
                 // Adjust scroll on collapse/expand
                 setLayoutChangeTrigger(prev => prev + 1);
+              }}
+              isCollapsed={expandedAnswerId !== null && expandedAnswerId !== pair.id}
+              onCollapsedChange={(collapsed) => {
+                setExpandedAnswerId(collapsed ? null : pair.id);
               }}
             />
           ))}
