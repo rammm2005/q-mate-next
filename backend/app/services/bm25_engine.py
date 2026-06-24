@@ -17,6 +17,12 @@ where:
     n(qi) = number of documents containing qi
 """
 
+# BM25 -> Statitik Term Freq (melihat persamaan dari surface code saja)
+# Algoritma Basic NN BLSTM / bisa menggunakan Transformer -> BERT / Indo Bert
+# Bandingan denngan basic Neural Network.....
+# Tampilkan biris nya dan file dan langsung mengarah ke file nya (kalo bisa)
+# Case new (misal ada new code [laravel] -> bisakah dia update codenya otomatis -> kode nya di screening -> melakukan proses pencarian)
+
 import math
 from collections import defaultdict
 

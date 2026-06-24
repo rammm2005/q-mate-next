@@ -104,13 +104,10 @@ class CodeChunk(BaseModel):
     @field_validator("language")
     @classmethod
     def language_must_be_supported(cls, v: str) -> str:
-        """Validate language is one of the supported languages."""
-        normalized = v.lower()
-        if normalized not in SUPPORTED_LANGUAGES:
-            raise ValueError(
-                f"language must be one of {sorted(SUPPORTED_LANGUAGES)}, "
-                f"got '{v}'"
-            )
+        """Normalize language to lowercase. Accepts any non-empty language string."""
+        normalized = v.lower().strip()
+        if not normalized:
+            return "python"  # Default fallback
         return normalized
 
     @model_validator(mode="after")
@@ -124,11 +121,21 @@ class CodeChunk(BaseModel):
 
     @model_validator(mode="after")
     def validate_content_tokens(self) -> "CodeChunk":
-        """Validate that content does not exceed MAX_CONTENT_TOKENS."""
+        """Truncate content if it exceeds MAX_CONTENT_TOKENS.
+
+        Instead of raising a validation error (which crashes ingestion),
+        we truncate oversized content to fit within the limit.
+        """
         token_count = _estimate_tokens(self.content)
         if token_count > MAX_CONTENT_TOKENS:
-            raise ValueError(
-                f"content exceeds maximum of {MAX_CONTENT_TOKENS} tokens "
-                f"(has {token_count} tokens)"
-            )
+            # Truncate content to fit within budget using binary search
+            low = 0
+            high = len(self.content)
+            while low < high:
+                mid = (low + high + 1) // 2
+                if _estimate_tokens(self.content[:mid]) <= MAX_CONTENT_TOKENS:
+                    low = mid
+                else:
+                    high = mid - 1
+            self.content = self.content[:low]
         return self

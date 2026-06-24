@@ -8,6 +8,7 @@ export interface AnswerCardProps {
   answerText: string;
   sources: SourceReferenceData[];
   confidence: number;
+  onOpenFile?: (filePath: string, line: number) => void;
 }
 
 /**
@@ -169,6 +170,7 @@ export default function AnswerCard({
   answerText,
   sources,
   confidence,
+  onOpenFile,
 }: AnswerCardProps) {
   const confidencePercent = Math.round(confidence * 100);
   const confidenceLevel = getConfidenceLevel(confidence);
@@ -196,7 +198,12 @@ export default function AnswerCard({
           <div className="answer-sources">
             <h4 className="sources-heading">Sources</h4>
             {sources.map((source, idx) => (
-              <SourceReference key={idx} source={source} index={idx} />
+              <SourceReference
+                key={idx}
+                source={source}
+                index={idx}
+                onOpenFile={onOpenFile}
+              />
             ))}
           </div>
         )}

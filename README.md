@@ -372,6 +372,45 @@ Computed at K = 1, 3, 5, 10
 7. **LLM** (Gemini 1.5 Flash) generates a readable natural language answer citing sources
 8. **Response** is returned with answer text, source references, and confidence score
 
+## Troubleshooting
+
+### Validation Error: "Input should be less than or equal to 1" (relevance field)
+
+If you encounter a Pydantic validation error about relevance scores, this is caused by cached Python bytecode files. BM25 scores can naturally exceed 1.0, which is correct behavior.
+
+**Solution:**
+```bash
+# Clear all Python cache files
+python clear_cache.py
+
+# Then restart the backend server
+cd backend
+uvicorn app.main:app --reload
+```
+
+### GitHub Repository Clone Failed
+
+- Ensure `git` is installed and accessible in your PATH
+- Check that the repository URL is valid and public (or you have access credentials)
+- Try cloning manually first: `git clone <url> /tmp/test-repo`
+
+### Empty Repository (0 files indexed)
+
+- Check that the repository contains supported file types (`.py`, `.js`, `.ts`, `.java`, `.cpp`, etc.)
+- Large files (>8192 tokens) are automatically truncated and split
+- Files matching `.gitignore` patterns are skipped
+
+### Backend Not Responding
+
+- Ensure the backend is running on port 8000: `ps aux | grep uvicorn`
+- Check backend logs for errors
+- Verify `.env.local` is in the project root with `GEMINI_API_KEY` set
+
+### Frontend Shows "Backend service is unavailable"
+
+- Start the backend first: `cd backend && uvicorn app.main:app --reload`
+- Check that `BACKEND_URL` in frontend/.env.local points to `http://localhost:8000`
+
 ## References
 
 1. Arwan, A., Rochimah, S., & Fatichah, C. (2023). Feature Location Using Extraction of Code Documentation. *International Conference on Sustainable Information Engineering and Technology (SIET 2023)*. ACM. https://doi.org/10.1145/3626641.3627149

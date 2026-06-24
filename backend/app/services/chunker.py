@@ -770,9 +770,12 @@ class CodeChunker:
     def _fallback_single_chunk(
         self, content: str, file_path: str, language: str
     ) -> list[CodeChunk]:
-        """Create a single chunk containing the entire file content.
+        """Create chunk(s) from the file content.
 
-        Used as fallback when parsing fails.
+        If the content fits within max_chunk_size, creates a single chunk.
+        Otherwise, splits by lines into multiple chunks with overlap.
+
+        Used as fallback when parsing fails or for unsupported languages.
 
         Args:
             content: Full file content.
@@ -780,19 +783,81 @@ class CodeChunker:
             language: Programming language.
 
         Returns:
-            List with a single CodeChunk.
+            List of CodeChunk objects covering the entire file.
         """
         lines = content.split("\n")
-        return [
+        total_tokens = estimate_tokens(content)
+
+        # If it fits in one chunk, return as-is
+        if total_tokens <= self.max_chunk_size:
+            return [
+                CodeChunk(
+                    id=str(uuid.uuid4()),
+                    repo_id=self.repo_id,
+                    file_path=file_path,
+                    language=language,
+                    chunk_type=ChunkType.MODULE,
+                    content=content,
+                    start_line=1,
+                    end_line=len(lines),
+                    metadata=ChunkMetadata(),
+                )
+            ]
+
+        # Split into multiple chunks by lines
+        chunks: list[CodeChunk] = []
+        current_start = 0
+
+        while current_start < len(lines):
+            # Find how many lines fit within max_chunk_size
+            end_idx = current_start
+            for i in range(current_start, len(lines)):
+                test_content = "\n".join(lines[current_start:i + 1])
+                if estimate_tokens(test_content) > self.max_chunk_size:
+                    break
+                end_idx = i
+
+            # If we couldn't fit even one line, take it anyway
+            if end_idx == current_start:
+                end_idx = current_start
+
+            chunk_content = "\n".join(lines[current_start:end_idx + 1])
+
+            if chunk_content.strip():
+                chunks.append(
+                    CodeChunk(
+                        id=str(uuid.uuid4()),
+                        repo_id=self.repo_id,
+                        file_path=file_path,
+                        language=language,
+                        chunk_type=ChunkType.MODULE,
+                        content=chunk_content,
+                        start_line=current_start + 1,
+                        end_line=end_idx + 1,
+                        metadata=ChunkMetadata(),
+                    )
+                )
+
+            # Move forward with overlap
+            if self.overlap > 0 and end_idx + 1 < len(lines):
+                overlap_lines = max(1, self.overlap // 10)  # rough line estimate
+                next_start = end_idx + 1 - overlap_lines
+                if next_start <= current_start:
+                    next_start = end_idx + 1
+                current_start = next_start
+            else:
+                current_start = end_idx + 1
+
+        return chunks if chunks else [
             CodeChunk(
                 id=str(uuid.uuid4()),
                 repo_id=self.repo_id,
                 file_path=file_path,
                 language=language,
                 chunk_type=ChunkType.MODULE,
-                content=content,
+                content=content[:1000],  # Absolute fallback: first 1000 chars
                 start_line=1,
-                end_line=len(lines),
+                end_line=min(len(lines), 50),
                 metadata=ChunkMetadata(),
             )
         ]
