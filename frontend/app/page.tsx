@@ -416,7 +416,7 @@ export default function Home() {
         </div>
 
         {/* Chat History */}
-        <div className="flex-1 overflow-y-auto py-6 pr-2 flex flex-col gap-6 min-h-0 custom-scrollbar" ref={chatHistoryRef}>
+        <div className="flex-1 overflow-y-auto pr-2 flex flex-col gap-6 min-h-0" ref={chatHistoryRef}>
           {!isRepoReady && history.length === 0 && !isLoading && (
             <div className="flex flex-col items-center justify-center h-full text-center p-8 text-gray-500 dark:text-gray-400">
               <FolderGit className="w-12 h-12 mb-4 text-blue-500/80 animate-pulse" />
