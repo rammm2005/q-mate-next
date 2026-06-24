@@ -146,6 +146,8 @@ export default function Home() {
 
   // File viewer state
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [selectedStartLine, setSelectedStartLine] = useState<number | undefined>(undefined);
+  const [selectedEndLine, setSelectedEndLine] = useState<number | undefined>(undefined);
 
   // Layout & scroll triggers
   const [layoutChangeTrigger, setLayoutChangeTrigger] = useState(0);
@@ -319,7 +321,9 @@ export default function Home() {
             tree={fileTree}
             repoName={fileTreeRepoName}
             onFileClick={(path) => {
-              setSelectedFilePath(path); // Open file viewer
+              setSelectedFilePath(path);
+              setSelectedStartLine(undefined);
+              setSelectedEndLine(undefined);
             }}
           />
         </aside>
@@ -444,8 +448,10 @@ export default function Home() {
               confidence={pair.confidence}
               mode={pair.mode}
               comparison={pair.comparison}
-              onOpenFile={(filePath, line) => {
+              onOpenFile={(filePath, startLine, endLine) => {
                 setSelectedFilePath(filePath);
+                setSelectedStartLine(startLine);
+                setSelectedEndLine(endLine);
               }}
               onToggle={() => {
                 // Adjust scroll on collapse/expand
@@ -569,7 +575,13 @@ export default function Home() {
       {selectedFilePath && (
         <FileViewer
           filePath={selectedFilePath}
-          onClose={() => setSelectedFilePath(null)}
+          onClose={() => {
+            setSelectedFilePath(null);
+            setSelectedStartLine(undefined);
+            setSelectedEndLine(undefined);
+          }}
+          startLine={selectedStartLine}
+          endLine={selectedEndLine}
         />
       )}
 

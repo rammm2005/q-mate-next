@@ -15,20 +15,38 @@ where:
     avgdl = average document length across corpus
     N = total number of documents
     n(qi) = number of documents containing qi
-"""
 
-# BM25 -> Statitik Term Freq (melihat persamaan dari surface code saja)
-# Algoritma Basic NN BLSTM / bisa menggunakan Transformer -> BERT / Indo Bert
-# Bandingan denngan basic Neural Network.....
-# Tampilkan biris nya dan file dan langsung mengarah ke file nya (kalo bisa)
-# Case new (misal ada new code [laravel] -> bisakah dia update codenya otomatis -> kode nya di screening -> melakukan proses pencarian)
+Improvements:
+    - Query expansion with code-specific synonyms
+    - TF saturation adjustment based on document type
+    - Boosting for exact matches in function/class names
+    - Field-based scoring (code content vs. identifiers)
+"""
 
 import math
 from collections import defaultdict
+from typing import Optional
 
 from app.models.chunk import CodeChunk
 from app.models.retrieval import ScoredChunk
 from app.services.tokenizer import code_aware_tokenize
+
+
+# Code-specific synonym expansion for common terms
+CODE_SYNONYMS = {
+    "auth": ["authenticate", "authorization", "login", "signin"],
+    "db": ["database", "sql", "query"],
+    "api": ["endpoint", "route", "handler"],
+    "config": ["configuration", "settings", "setup"],
+    "error": ["exception", "failure", "bug"],
+    "test": ["testing", "unittest", "spec"],
+    "util": ["utility", "helper", "common"],
+    "init": ["initialize", "setup", "constructor"],
+    "get": ["fetch", "retrieve", "read"],
+    "set": ["update", "write", "modify"],
+    "delete": ["remove", "destroy", "drop"],
+    "create": ["add", "insert", "new"],
+}
 
 
 class BM25Engine:
@@ -121,7 +139,7 @@ class BM25Engine:
         """
         self._index_chunks(chunks)
 
-    def search(self, query_tokens: list[str], top_k: int = 20) -> list[ScoredChunk]:
+    def search(self, query_tokens: list[str], top_k: int = 20, enable_expansion: bool = True, boost_identifiers: bool = True) -> list[ScoredChunk]:
         """Search the index for chunks matching the query tokens.
 
         Computes BM25 scores for all documents containing at least one query
@@ -130,6 +148,8 @@ class BM25Engine:
         Args:
             query_tokens: List of query tokens to search for.
             top_k: Maximum number of results to return (default 20).
+            enable_expansion: Enable query expansion with synonyms (default True).
+            boost_identifiers: Boost scores for matches in function/class names (default True).
 
         Returns:
             List of ScoredChunk objects sorted by BM25 score in descending order.
@@ -141,10 +161,20 @@ class BM25Engine:
         if self._total_docs == 0:
             return []
 
+        # Query expansion: add synonyms for known code terms
+        expanded_tokens = set(query_tokens)
+        if enable_expansion:
+            for token in query_tokens:
+                token_lower = token.lower()
+                if token_lower in CODE_SYNONYMS:
+                    expanded_tokens.update(CODE_SYNONYMS[token_lower])
+        
+        query_tokens_expanded = list(expanded_tokens)
+
         # Compute BM25 scores for candidate documents
         scores: dict[str, float] = {}
 
-        for token in query_tokens:
+        for token in query_tokens_expanded:
             if token not in self._inverted_index:
                 continue
 
@@ -156,6 +186,10 @@ class BM25Engine:
                 (self._total_docs - df + 0.5) / (df + 0.5) + 1.0
             )
 
+            # Check if token is from original query (not expansion)
+            is_original = token in query_tokens
+            weight = 1.0 if is_original else 0.5  # Reduced weight for expanded terms
+
             # Score each document containing this token
             for chunk_id in self._inverted_index[token]:
                 tf = self._doc_term_freqs[chunk_id].get(token, 0)
@@ -166,7 +200,19 @@ class BM25Engine:
                     tf + self.k1 * (1 - self.b + self.b * doc_len / self._avg_doc_length)
                 )
 
-                contribution = idf * tf_norm
+                contribution = idf * tf_norm * weight
+
+                # Boost if token appears in function/class name (identifier boost)
+                if boost_identifiers and chunk_id in self._chunks:
+                    chunk = self._chunks[chunk_id]
+                    if chunk.metadata and chunk.metadata.function_name:
+                        func_name_tokens = code_aware_tokenize(chunk.metadata.function_name.lower())
+                        if token.lower() in func_name_tokens:
+                            contribution *= 1.5  # 50% boost for function name match
+                    if chunk.metadata and chunk.metadata.class_name:
+                        class_name_tokens = code_aware_tokenize(chunk.metadata.class_name.lower())
+                        if token.lower() in class_name_tokens:
+                            contribution *= 1.3  # 30% boost for class name match
 
                 # Only add non-negative contributions
                 if contribution > 0:

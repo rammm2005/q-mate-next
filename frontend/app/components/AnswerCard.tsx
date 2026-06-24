@@ -18,7 +18,7 @@ export interface AnswerCardProps {
   answerText: string;
   sources: SourceReferenceData[];
   confidence: number;
-  onOpenFile?: (filePath: string, line: number) => void;
+  onOpenFile?: (filePath: string, startLine: number, endLine: number) => void;
   onToggle?: () => void;
   mode?: string;
   comparison?: {
@@ -232,9 +232,9 @@ export default function AnswerCard({
   const isCompareMode = mode === "compare" && comparison;
 
   return (
-    <div className="bg-white dark:bg-darkCard border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm dark:shadow-black/30 overflow-y-auto transition-all duration-200">
+    <div className="bg-white dark:bg-darkCard border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm dark:shadow-black/30 transition-all duration-200">
       <div
-        className={`flex items-center justify-between px-5 py-4 bg-blue-500/[0.02] hover:bg-blue-500/5 cursor-pointer select-none transition-colors duration-200 ${isCollapsed ? "" : "border-b border-gray-200 dark:border-gray-800 overflow-y-auto"}`}
+        className={`flex items-center justify-between px-5 py-4 bg-blue-500/[0.02] hover:bg-blue-500/5 cursor-pointer select-none transition-colors duration-200 ${isCollapsed ? "" : "border-b border-gray-200 dark:border-gray-800"}`}
         onClick={handleToggle}
       >
         <div className="flex items-start gap-3 flex-1 min-w-0">

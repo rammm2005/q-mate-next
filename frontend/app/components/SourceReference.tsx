@@ -33,7 +33,7 @@ export interface SourceReferenceData {
 interface SourceReferenceProps {
   source: SourceReferenceData;
   index: number;
-  onOpenFile?: (filePath: string, line: number) => void;
+  onOpenFile?: (filePath: string, startLine: number, endLine: number) => void;
 }
 
 /**
@@ -73,7 +73,7 @@ export default function SourceReference({ source, index, onOpenFile }: SourceRef
   const handleOpenFile = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onOpenFile) {
-      onOpenFile(source.file_path, source.start_line);
+      onOpenFile(source.file_path, source.start_line, source.end_line);
     }
   };
 

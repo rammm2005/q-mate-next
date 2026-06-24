@@ -57,6 +57,8 @@ class SearchEngine:
     def ingest_local_repo(self, repo_path: str, repo_name: str = "default") -> IngestStats:
         """Ingest a local repository into the in-memory search index.
 
+        Resets any existing index before ingestion.
+
         Args:
             repo_path: Path to the local repository folder.
             repo_name: Name identifier for the repository.
@@ -64,6 +66,9 @@ class SearchEngine:
         Returns:
             IngestStats with counts of processed files and chunks.
         """
+        # Reset existing index
+        self.reset_index()
+        
         self.repo_name = repo_name
         self.repo_path = repo_path  # Store the path
 
@@ -185,6 +190,19 @@ class SearchEngine:
             "repo_name": self.repo_name,
             "total_chunks": len(self.chunks),
         }
+
+    def reset_index(self) -> None:
+        """Reset the search index, clearing all indexed data."""
+        logger.info("Resetting search index...")
+        self.chunks = []
+        self.chunk_embeddings = np.empty((0, 0))
+        self.is_indexed = False
+        self.repo_name = ""
+        self.repo_path = ""
+        
+        # Rebuild empty BM25 index
+        self.bm25 = BM25Engine()
+        logger.info("Search index reset completed.")
 
 
 # Global singleton instance

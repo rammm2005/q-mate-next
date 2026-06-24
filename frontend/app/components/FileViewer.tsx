@@ -19,6 +19,8 @@ interface FileViewerProps {
   filePath: string;
   onClose: () => void;
   initialLine?: number;
+  startLine?: number;
+  endLine?: number;
 }
 
 interface FileContent {
@@ -201,7 +203,7 @@ function renderFormattedMarkdown(text: string): React.ReactNode[] {
 /**
  * Modal component for viewing file content (read-only)
  */
-export default function FileViewer({ filePath, onClose, initialLine = 1 }: FileViewerProps) {
+export default function FileViewer({ filePath, onClose, initialLine = 1, startLine, endLine }: FileViewerProps) {
   const [content, setContent] = useState<FileContent | null>(null);
   const [editorUrls, setEditorUrls] = useState<EditorUrls | null>(null);
   const [loading, setLoading] = useState(true);
@@ -225,6 +227,16 @@ export default function FileViewer({ filePath, onClose, initialLine = 1 }: FileV
   useEffect(() => {
     loadFileContent();
     loadEditorUrls();
+    
+    // Scroll to highlighted line after content loads
+    if (startLine) {
+      setTimeout(() => {
+        const lineElement = document.getElementById(`line-${startLine}`);
+        if (lineElement) {
+          lineElement.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 300);
+    }
   }, [filePath]);
 
   const loadFileContent = async () => {
@@ -516,14 +528,43 @@ export default function FileViewer({ filePath, onClose, initialLine = 1 }: FileV
               {viewMode === "code" && (
                 <div className="flex font-mono text-xs sm:text-sm leading-relaxed bg-white dark:bg-darkCard">
                   <div className="py-4 pl-4 pr-2 text-right text-gray-450 dark:text-gray-500 select-none border-r border-gray-200 dark:border-gray-850 bg-black/[0.01] dark:bg-white/[0.01] min-w-[60px] font-mono">
-                    {Array.from({ length: content.total_lines }, (_, i) => (
-                      <div key={i + 1} id={`line-${i + 1}`} className="px-2 text-xs">
-                        {i + 1}
-                      </div>
-                    ))}
+                    {Array.from({ length: content.total_lines }, (_, i) => {
+                      const lineNum = i + 1;
+                      const isHighlighted = startLine && endLine && lineNum >= startLine && lineNum <= endLine;
+                      return (
+                        <div 
+                          key={lineNum} 
+                          id={`line-${lineNum}`} 
+                          className={`px-2 text-xs transition-colors ${
+                            isHighlighted 
+                              ? "bg-yellow-200 dark:bg-yellow-900/40 text-yellow-900 dark:text-yellow-200 font-bold" 
+                              : ""
+                          }`}
+                        >
+                          {lineNum}
+                        </div>
+                      );
+                    })}
                   </div>
                   <pre className={`flex-1 py-4 px-6 m-0 overflow-x-auto whitespace-pre bg-white dark:bg-darkCard language-${content.language} custom-scrollbar`}>
-                    <code>{content.content}</code>
+                    <code>
+                      {content.content.split('\n').map((line, i) => {
+                        const lineNum = i + 1;
+                        const isHighlighted = startLine && endLine && lineNum >= startLine && lineNum <= endLine;
+                        return (
+                          <div 
+                            key={lineNum} 
+                            className={`${
+                              isHighlighted 
+                                ? "bg-yellow-100 dark:bg-yellow-900/20 border-l-4 border-yellow-500 dark:border-yellow-400 pl-2 -ml-2" 
+                                : ""
+                            }`}
+                          >
+                            {line}
+                          </div>
+                        );
+                      })}
+                    </code>
                   </pre>
                 </div>
               )}
