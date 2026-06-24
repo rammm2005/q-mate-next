@@ -45,6 +45,7 @@ def clone_repository(github_url: str) -> CloneResult:
     Returns:
         CloneResult with success status and local path.
     """
+    import time
     if not validate_github_url(github_url):
         return CloneResult(
             success=False,
@@ -54,44 +55,26 @@ def clone_repository(github_url: str) -> CloneResult:
         )
 
     repo_name = extract_repo_name(github_url)
-    local_path = os.path.join(REPOS_DIR, repo_name)
-
+    
     # Create repos directory if it doesn't exist
     os.makedirs(REPOS_DIR, exist_ok=True)
 
-    # If already cloned, try to remove (may fail on Windows due to file locks)
-    if os.path.exists(local_path):
-        try:
-            # Try git pull to update
-            pull_result = subprocess.run(
-                ["git", "pull"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-                cwd=local_path,
-            )
-            if pull_result.returncode == 0:
-                return CloneResult(
-                    success=True,
-                    local_path=local_path,
-                    repo_name=repo_name,
-                )
-        except Exception:
-            pass
+    # Clean up older repository folders that are not locked
+    try:
+        for item in os.listdir(REPOS_DIR):
+            item_path = os.path.join(REPOS_DIR, item)
+            if os.path.isdir(item_path):
+                try:
+                    shutil.rmtree(item_path)
+                except Exception:
+                    # Ignore folders that fail to delete (currently locked / active)
+                    pass
+    except Exception:
+        pass
 
-        # If pull failed, try fresh clone
-        try:
-            shutil.rmtree(local_path, ignore_errors=True)
-        except Exception:
-            pass
-
-        # If still exists after rmtree attempt, just reuse it
-        if os.path.exists(local_path):
-            return CloneResult(
-                success=True,
-                local_path=local_path,
-                repo_name=repo_name,
-            )
+    # Use unique folder with timestamp to bypass folder locks and ensure fresh checkout
+    timestamp = int(time.time())
+    local_path = os.path.join(REPOS_DIR, f"{repo_name}_{timestamp}")
 
     try:
         # Clone with depth=1 for faster download (only latest commit)

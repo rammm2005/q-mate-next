@@ -29,6 +29,7 @@ router = APIRouter()
 class QueryRequest(BaseModel):
     """Request body for the query endpoint."""
     question: str = Field(min_length=1, max_length=1000)
+    mode: str = Field(default="bm25")  # "bm25", "indobert", or "compare"
 
 
 class SourceItem(BaseModel):
@@ -47,6 +48,7 @@ class QueryResponse(BaseModel):
     sources: list[SourceItem] = Field(default_factory=list)
     confidence: float = Field(ge=0.0, le=1.0)
     metadata: dict = Field(default_factory=dict)
+    comparison: Optional[dict] = None
 
 
 class IngestRequest(BaseModel):
@@ -147,10 +149,7 @@ async def query_endpoint(
 ) -> QueryResponse:
     """Ask a question about the indexed repository.
 
-    Uses BM25 retrieval to find relevant code chunks, then optionally
-    uses Gemini LLM to generate a readable answer.
-
-    The repository must be indexed first via POST /api/ingest.
+    Uses BM25 or IndoBERT retrieval to find relevant code chunks, or compares both.
     """
     engine = get_search_engine()
 
@@ -164,11 +163,41 @@ async def query_endpoint(
 
     # Sanitize input
     question = html.escape(request.question.strip(), quote=True)
+    mode = request.mode
 
-    # Search the indexed repo
-    results = engine.search(question, top_k=5)
+    # Resolve search results based on mode
+    bm25_results = []
+    indobert_results = []
+    comparison_data = None
 
-    if not results:
+    # Load Gemini if available
+    gemini = None
+    try:
+        from app.services.gemini_client import GeminiClient
+        gemini = GeminiClient()
+    except (ValueError, ImportError):
+        pass
+
+    if mode == "compare":
+        # Run both retrieval modes
+        bm25_results = engine.search_bm25(question, top_k=5)
+        indobert_results = engine.search_indobert(question, top_k=5)
+        
+        # Merge results for default grounded answer generation
+        # We will use all distinct chunks (up to 5 total)
+        seen_ids = set()
+        merged_results = []
+        for r in (indobert_results + bm25_results):
+            if r.chunk.id not in seen_ids:
+                seen_ids.add(r.chunk.id)
+                merged_results.append(r)
+                if len(merged_results) >= 5:
+                    break
+        results = merged_results
+    else:
+        results = engine.search(question, top_k=5, mode=mode)
+
+    if not results and not bm25_results and not indobert_results:
         return QueryResponse(
             answer=f"No relevant code found for your question in '{engine.repo_name}'. Try rephrasing or using specific function/class names.",
             sources=[],
@@ -177,15 +206,7 @@ async def query_endpoint(
         )
 
     # Build answer from retrieved chunks
-    answer_generator = AnswerGenerator(llm_client=None, max_context_tokens=4096)
-
-    # Try with Gemini if available
-    try:
-        from app.services.gemini_client import GeminiClient
-        gemini = GeminiClient()
-        answer_generator = AnswerGenerator(llm_client=gemini, max_context_tokens=4096)
-    except (ValueError, ImportError):
-        pass  # No Gemini key - use fallback mode
+    answer_generator = AnswerGenerator(llm_client=gemini, max_context_tokens=4096)
 
     # Generate answer
     grounded_answer = await answer_generator.generate_answer(question, results)
@@ -203,6 +224,54 @@ async def query_endpoint(
         for src in grounded_answer.sources
     ]
 
+    if mode == "compare":
+        # Format comparison sources for response
+        bm25_sources = [
+            SourceItem(
+                file_path=r.chunk.file_path,
+                function_name=r.chunk.metadata.function_name,
+                start_line=r.chunk.start_line,
+                end_line=r.chunk.end_line,
+                snippet=r.chunk.content[:200],
+                relevance=r.fused_score,
+            ) for r in bm25_results
+        ]
+        indobert_sources = [
+            SourceItem(
+                file_path=r.chunk.file_path,
+                function_name=r.chunk.metadata.function_name,
+                start_line=r.chunk.start_line,
+                end_line=r.chunk.end_line,
+                snippet=r.chunk.content[:200],
+                relevance=r.fused_score,
+            ) for r in indobert_results
+        ]
+
+        # Generate accuracy comparison/evaluation using Gemini if available
+        evaluation = ""
+        if gemini:
+            try:
+                bm25_text = "\n\n".join([f"[{i+1}] File: {r.chunk.file_path}\n{r.chunk.content[:500]}" for i, r in enumerate(bm25_results)])
+                indobert_text = "\n\n".join([f"[{i+1}] File: {r.chunk.file_path}\n{r.chunk.content[:500]}" for i, r in enumerate(indobert_results)])
+                
+                eval_prompt = (
+                    f"You are an AI evaluator comparing two search retrieval algorithms for the query: '{question}'\n\n"
+                    f"### BM25 (Lexical Search) results:\n{bm25_text}\n\n"
+                    f"### IndoBERT (Semantic Search) results:\n{indobert_text}\n\n"
+                    "Analyze both sets of results. Explain which retrieval method was more accurate, relevant, and helpful for answering the user's query, and why. Be objective and concise (maximum 3 paragraphs). Write your evaluation in Indonesian."
+                )
+                evaluation = await gemini.generate(eval_prompt)
+            except Exception as e:
+                evaluation = f"Gagal menghasilkan evaluasi AI: {str(e)}"
+        else:
+            evaluation = "Evaluasi AI tidak tersedia karena API Key Gemini tidak terkonfigurasi. Silakan periksa file pendukung atau environment variables Anda."
+
+        comparison_data = {
+            "bm25_sources": bm25_sources,
+            "indobert_sources": indobert_sources,
+            "evaluation": evaluation
+        }
+
     return QueryResponse(
         answer=grounded_answer.answer_text,
         sources=sources,
@@ -211,6 +280,7 @@ async def query_endpoint(
             "repo_name": engine.repo_name,
             **grounded_answer.retrieval_metadata,
         },
+        comparison=comparison_data,
     )
 
 

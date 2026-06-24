@@ -1,7 +1,16 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import SourceReference, { SourceReferenceData } from "./SourceReference";
+import {
+  ChevronDown,
+  HelpCircle,
+  Sparkles,
+  CheckCircle2,
+  AlertCircle,
+  Info,
+  BookOpen
+} from "lucide-react";
 
 export interface AnswerCardProps {
   question: string;
@@ -9,28 +18,39 @@ export interface AnswerCardProps {
   sources: SourceReferenceData[];
   confidence: number;
   onOpenFile?: (filePath: string, line: number) => void;
+  onToggle?: () => void;
+  mode?: string;
+  comparison?: {
+    bm25_sources: SourceReferenceData[];
+    indobert_sources: SourceReferenceData[];
+    evaluation: string;
+  } | null;
 }
 
 /**
- * Returns a CSS class name for confidence score color coding.
+ * Returns CSS classes for confidence score color coding.
  */
 function getConfidenceLevel(confidence: number): string {
-  if (confidence >= 0.8) return "confidence-high";
-  if (confidence >= 0.5) return "confidence-medium";
-  return "confidence-low";
+  if (confidence >= 0.8) return "bg-green-500/15 text-green-700 dark:text-green-400";
+  if (confidence >= 0.5) return "bg-amber-500/15 text-amber-700 dark:text-amber-400";
+  return "bg-red-500/15 text-red-700 dark:text-red-400";
+}
+
+/**
+ * Returns a matching icon based on confidence.
+ */
+function ConfidenceIcon({ confidence, size = 14 }: { confidence: number; size?: number }) {
+  if (confidence >= 0.8) return <CheckCircle2 size={size} className="text-green-600 dark:text-green-400" />;
+  if (confidence >= 0.5) return <Info size={size} className="text-amber-600 dark:text-amber-400" />;
+  return <AlertCircle size={size} className="text-red-600 dark:text-red-400" />;
 }
 
 /**
  * Renders answer text with basic markdown-like formatting.
- * Handles:
- * - Code blocks (triple backticks with optional language)
- * - Inline code (single backticks)
- * - Bold text (**text**)
- * - Line breaks
- * - [Source N] references rendered as badges
  */
 function renderFormattedAnswer(text: string): React.ReactNode[] {
   const elements: React.ReactNode[] = [];
+  if (!text) return elements;
   const lines = text.split("\n");
   let inCodeBlock = false;
   let codeBlockContent = "";
@@ -54,7 +74,7 @@ function renderFormattedAnswer(text: string): React.ReactNode[] {
           ? `language-${codeBlockLanguage}`
           : "";
         elements.push(
-          <pre key={`code-${blockIndex}`} className="answer-code-block">
+          <pre key={`code-${blockIndex}`} className="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 my-3 overflow-x-auto">
             <code className={langClass}>{codeBlockContent}</code>
           </pre>
         );
@@ -71,7 +91,7 @@ function renderFormattedAnswer(text: string): React.ReactNode[] {
 
     // Process inline formatting
     elements.push(
-      <p key={`line-${i}`} className="answer-line">
+      <p key={`line-${i}`} className="mb-2 leading-relaxed text-sm sm:text-base text-neutral-800 dark:text-neutral-200">
         {renderInlineFormatting(line, i)}
       </p>
     );
@@ -80,7 +100,7 @@ function renderFormattedAnswer(text: string): React.ReactNode[] {
   // Handle unclosed code block
   if (inCodeBlock && codeBlockContent) {
     elements.push(
-      <pre key={`code-unclosed-${blockIndex}`} className="answer-code-block">
+      <pre key={`code-unclosed-${blockIndex}`} className="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 my-3 overflow-x-auto">
         <code className={codeBlockLanguage ? `language-${codeBlockLanguage}` : ""}>
           {codeBlockContent}
         </code>
@@ -96,7 +116,6 @@ function renderFormattedAnswer(text: string): React.ReactNode[] {
  */
 function renderInlineFormatting(text: string, lineIndex: number): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
-  // Match **bold**, `inline code`, and [Source N] references
   const pattern = /(\*\*(.+?)\*\*|`([^`]+)`|\[Source\s+(\d+)\])/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -116,12 +135,12 @@ function renderInlineFormatting(text: string, lineIndex: number): React.ReactNod
     if (match[2]) {
       // Bold text
       parts.push(
-        <strong key={`${lineIndex}-bold-${partIndex}`}>{match[2]}</strong>
+        <strong key={`${lineIndex}-bold-${partIndex}`} className="font-semibold text-neutral-900 dark:text-neutral-50">{match[2]}</strong>
       );
     } else if (match[3]) {
       // Inline code
       parts.push(
-        <code key={`${lineIndex}-code-${partIndex}`} className="inline-code">
+        <code key={`${lineIndex}-code-${partIndex}`} className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded font-mono text-xs sm:text-sm text-red-600 dark:text-red-400">
           {match[3]}
         </code>
       );
@@ -130,9 +149,10 @@ function renderInlineFormatting(text: string, lineIndex: number): React.ReactNod
       parts.push(
         <span
           key={`${lineIndex}-source-${partIndex}`}
-          className="source-badge"
+          className="inline-flex items-center gap-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-semibold px-1.5 py-0.5 rounded align-middle"
         >
-          [Source {match[4]}]
+          <BookOpen size={10} />
+          Source {match[4]}
         </span>
       );
     }
@@ -157,13 +177,7 @@ function renderInlineFormatting(text: string, lineIndex: number): React.ReactNod
 }
 
 /**
- * AnswerCard displays the AI-generated answer with:
- * - Formatted answer text (markdown-like)
- * - Source references as clickable expandable elements
- * - Code snippets with syntax highlighting
- * - Confidence score badge
- *
- * Requirements: 13.2, 13.3
+ * AnswerCard displays the AI-generated answer.
  */
 export default function AnswerCard({
   question,
@@ -171,43 +185,192 @@ export default function AnswerCard({
   sources,
   confidence,
   onOpenFile,
+  onToggle,
+  mode = "bm25",
+  comparison = null,
 }: AnswerCardProps) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<"answer" | "retrieval" | "evaluation">("answer");
+
+  useEffect(() => {
+    if (onToggle && !isCollapsed) {
+      setTimeout(() => {
+        onToggle();
+      }, 50);
+    }
+  }, [activeTab, onToggle, isCollapsed]);
+  
   const confidencePercent = Math.round(confidence * 100);
-  const confidenceLevel = getConfidenceLevel(confidence);
+  const confidenceClasses = getConfidenceLevel(confidence);
+
+  const handleToggle = () => {
+    const nextCollapsed = !isCollapsed;
+    setIsCollapsed(nextCollapsed);
+    if (onToggle) {
+      // Wait a tiny fraction of a second for DOM layout to adjust before scrolling
+      setTimeout(() => {
+        onToggle();
+      }, 50);
+    }
+  };
+
+  const isCompareMode = mode === "compare" && comparison;
 
   return (
-    <div className="answer-card">
-      <div className="answer-question">
-        <span className="question-icon">Q</span>
-        <span className="question-text">{question}</span>
-      </div>
-
-      <div className="answer-body">
-        <div className="answer-header">
-          <span className="answer-icon">A</span>
-          <span className={`confidence-badge ${confidenceLevel}`}>
-            Confidence: {confidencePercent}%
+    <div className="bg-white dark:bg-darkCard border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm dark:shadow-black/30 overflow-hidden transition-all duration-200">
+      <div
+        className={`flex items-center justify-between px-5 py-4 bg-blue-500/[0.02] hover:bg-blue-500/5 cursor-pointer select-none transition-colors duration-200 ${isCollapsed ? "" : "border-b border-gray-200 dark:border-gray-800"}`}
+        onClick={handleToggle}
+      >
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5">
+            <HelpCircle size={15} />
           </span>
+          <span className="font-semibold text-sm sm:text-base leading-relaxed break-words">{question}</span>
         </div>
-
-        <div className="answer-content">
-          {renderFormattedAnswer(answerText)}
-        </div>
-
-        {sources.length > 0 && (
-          <div className="answer-sources">
-            <h4 className="sources-heading">Sources</h4>
-            {sources.map((source, idx) => (
-              <SourceReference
-                key={idx}
-                source={source}
-                index={idx}
-                onOpenFile={onOpenFile}
-              />
-            ))}
-          </div>
-        )}
+        <span className="flex items-center ml-4 flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+          <ChevronDown
+            size={18}
+            className={`transition-transform duration-250 ease-in-out ${isCollapsed ? "-rotate-90" : ""}`}
+          />
+        </span>
       </div>
+
+      {!isCollapsed && (
+        <div className="px-5 py-4 animate-slide-down">
+          {/* Compare Tabs */}
+          {isCompareMode && (
+            <div className="flex border-b border-gray-200 dark:border-gray-800 mb-4 gap-4">
+              <button
+                onClick={() => setActiveTab("answer")}
+                className={`pb-2 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+                  activeTab === "answer"
+                    ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                    : "border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                }`}
+              >
+                Grounded Answer
+              </button>
+              <button
+                onClick={() => setActiveTab("retrieval")}
+                className={`pb-2 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+                  activeTab === "retrieval"
+                    ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                    : "border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                }`}
+              >
+                Retrieval Comparison
+              </button>
+              <button
+                onClick={() => setActiveTab("evaluation")}
+                className={`pb-2 text-xs sm:text-sm font-semibold border-b-2 transition-all ${
+                  activeTab === "evaluation"
+                    ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                    : "border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                }`}
+              >
+                AI Accuracy Evaluation
+              </button>
+            </div>
+          )}
+
+          {(!isCompareMode || activeTab === "answer") && (
+            <>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 flex-shrink-0">
+                  <Sparkles size={14} />
+                </span>
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${confidenceClasses}`}>
+                  <ConfidenceIcon confidence={confidence} size={12} />
+                  Confidence: {confidencePercent}%
+                </span>
+              </div>
+
+              <div className="mb-4">
+                {renderFormattedAnswer(answerText)}
+              </div>
+
+              {sources.length > 0 && (
+                <div className="border-t border-gray-200 dark:border-gray-800 pt-4 mt-2">
+                  <h4 className="text-xs font-bold mb-3 text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                    <BookOpen size={12} />
+                    Sources Used
+                  </h4>
+                  <div className="flex flex-col gap-2">
+                    {sources.map((source, idx) => (
+                      <SourceReference
+                        key={idx}
+                        source={source}
+                        index={idx}
+                        onOpenFile={onOpenFile}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {isCompareMode && activeTab === "retrieval" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              {/* BM25 Chunks */}
+              <div className="border border-gray-150 dark:border-gray-800 rounded-lg p-4 bg-gray-50/50 dark:bg-white/[0.01]">
+                <h4 className="text-xs font-bold mb-3 text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
+                  🔍 BM25 (Lexical Search)
+                </h4>
+                <div className="flex flex-col gap-2">
+                  {comparison.bm25_sources.length > 0 ? (
+                    comparison.bm25_sources.map((source, idx) => (
+                      <SourceReference
+                        key={idx}
+                        source={source}
+                        index={idx}
+                        onOpenFile={onOpenFile}
+                      />
+                    ))
+                  ) : (
+                    <span className="text-xs text-gray-400">Tidak ada file yang dicocokkan.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* IndoBERT Chunks */}
+              <div className="border border-gray-150 dark:border-gray-800 rounded-lg p-4 bg-gray-50/50 dark:bg-white/[0.01]">
+                <h4 className="text-xs font-bold mb-3 text-purple-600 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1">
+                  🧠 IndoBERT (Semantic Search)
+                </h4>
+                <div className="flex flex-col gap-2">
+                  {comparison.indobert_sources.length > 0 ? (
+                    comparison.indobert_sources.map((source, idx) => (
+                      <SourceReference
+                        key={idx}
+                        source={source}
+                        index={idx}
+                        onOpenFile={onOpenFile}
+                      />
+                    ))
+                  ) : (
+                    <span className="text-xs text-gray-400">Tidak ada file yang dicocokkan.</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isCompareMode && activeTab === "evaluation" && (
+            <div className="pt-2 animate-fade-in">
+              <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-5">
+                <h4 className="text-xs font-bold mb-3 text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
+                  📊 Analisis Perbandingan Akurasi AI
+                </h4>
+                <div className="prose dark:prose-invert max-w-none text-neutral-800 dark:text-neutral-200">
+                  {renderFormattedAnswer(comparison.evaluation)}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

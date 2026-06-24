@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { Eye, ChevronDown, ChevronRight, FileCode } from "lucide-react";
 
 /**
  * Supported languages for syntax highlighting.
@@ -59,10 +60,7 @@ function detectLanguage(filePath: string): SupportedLanguage | null {
 }
 
 /**
- * SourceReference component displays an individual source reference
- * with file path, function name, line range, and an expandable code snippet.
- *
- * Requirements: 13.2, 13.3
+ * SourceReference component displays an individual source reference.
  */
 export default function SourceReference({ source, index, onOpenFile }: SourceReferenceProps) {
   const [expanded, setExpanded] = useState(false);
@@ -80,9 +78,9 @@ export default function SourceReference({ source, index, onOpenFile }: SourceRef
   };
 
   return (
-    <div className="source-reference">
+    <div className="border border-gray-200 dark:border-gray-800 rounded-lg mb-2 overflow-hidden bg-white dark:bg-darkCard transition-all duration-150">
       <div
-        className="source-reference-header"
+        className="group flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-blue-500/5 transition-colors duration-150 flex-wrap outline-none select-none"
         onClick={() => setExpanded(!expanded)}
         role="button"
         tabIndex={0}
@@ -94,39 +92,40 @@ export default function SourceReference({ source, index, onOpenFile }: SourceRef
         aria-expanded={expanded}
         aria-label={`Source ${index + 1}: ${source.file_path}`}
       >
-        <span className="source-index">[{index + 1}]</span>
-        <span className="source-file-path" title={source.file_path}>
+        <span className="text-xs font-bold text-blue-600 dark:text-blue-400 flex-shrink-0">[{index + 1}]</span>
+        <span className="font-mono text-xs font-medium text-blue-600 dark:text-blue-400 underline decoration-transparent group-hover:decoration-blue-500 dark:group-hover:decoration-blue-400 transition-colors duration-150 truncate max-w-[200px] sm:max-w-xs md:max-w-md" title={source.file_path}>
           {source.file_path}
         </span>
         {source.function_name && (
-          <span className="source-function-name">
-            {source.function_name}
+          <span className="text-xs text-gray-500 dark:text-gray-400 italic">
+            → {source.function_name}
           </span>
         )}
-        <span className="source-line-range">
+        <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
           Lines {source.start_line}-{source.end_line}
         </span>
         {languageLabel && (
-          <span className="source-language-badge">{languageLabel}</span>
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 uppercase tracking-wider">{languageLabel}</span>
         )}
         {onOpenFile && (
           <button
-            className="source-open-button"
+            className="px-2.5 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition-all shadow-sm hover:shadow hover:-translate-y-[1px] active:translate-y-0 active:shadow-sm flex-shrink-0 ml-2 cursor-pointer flex items-center gap-1"
             onClick={handleOpenFile}
             title="Open file viewer"
           >
-            👁️ View
+            <Eye size={12} />
+            View
           </button>
         )}
-        <span className="source-expand-icon">
-          {expanded ? "▾" : "▸"}
+        <span className="text-gray-400 dark:text-gray-500 flex-shrink-0 ml-1">
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </span>
       </div>
 
       {expanded && source.snippet && (
-        <div className="source-snippet">
-          <pre>
-            <code className={languageClass}>{source.snippet}</code>
+        <div className="border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 p-3 overflow-x-auto">
+          <pre className="m-0">
+            <code className={`font-mono text-xs leading-relaxed ${languageClass}`}>{source.snippet}</code>
           </pre>
         </div>
       )}
