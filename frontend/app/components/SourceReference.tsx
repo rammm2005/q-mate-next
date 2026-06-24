@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Eye, ChevronDown, ChevronRight, FileCode } from "lucide-react";
+import { Eye, ChevronDown, ChevronRight } from "lucide-react";
 
 /**
  * Supported languages for syntax highlighting.

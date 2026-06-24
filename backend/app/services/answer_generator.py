@@ -179,13 +179,15 @@ class AnswerGenerator:
             seen_indices.add(n)
 
             chunk = selected_chunks[n - 1].chunk  # 1-indexed
+            # Normalize relevance score to [0, 1] for display
+            normalized_relevance = min(selected_chunks[n - 1].fused_score, 1.0)
             source = SourceReference(
                 file_path=chunk.file_path,
                 function_name=chunk.metadata.function_name,
                 start_line=chunk.start_line,
                 end_line=chunk.end_line,
                 snippet=chunk.content[:200],  # First 200 chars
-                relevance=selected_chunks[n - 1].fused_score,
+                relevance=normalized_relevance,
             )
             valid_sources.append(source)
 
@@ -299,6 +301,8 @@ class AnswerGenerator:
                 f"[Source {i}] {chunk.file_path} "
                 f"(lines {chunk.start_line}-{chunk.end_line})"
             )
+            # Normalize relevance score to [0, 1] for display
+            normalized_relevance = min(result.fused_score, 1.0)
             sources.append(
                 SourceReference(
                     file_path=chunk.file_path,
@@ -306,7 +310,7 @@ class AnswerGenerator:
                     start_line=chunk.start_line,
                     end_line=chunk.end_line,
                     snippet=chunk.content[:200],
-                    relevance=result.fused_score,
+                    relevance=normalized_relevance,
                 )
             )
 

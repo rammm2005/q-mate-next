@@ -13,7 +13,7 @@ class SourceReference(BaseModel):
     start_line: int = Field(ge=1)
     end_line: int = Field(ge=1)
     snippet: str = ""
-    relevance: float = Field(ge=0.0)
+    relevance: float = Field(ge=0.0)  # RRF fusion can produce scores > 1.0
 
 
 class GroundedAnswer(BaseModel):

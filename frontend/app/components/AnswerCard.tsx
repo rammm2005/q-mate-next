@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import SourceReference, { SourceReferenceData } from "./SourceReference";
+import RetrievalStatistics from "./RetrievalStatistics";
 import {
   ChevronDown,
   HelpCircle,
@@ -312,46 +313,56 @@ export default function AnswerCard({
           )}
 
           {isCompareMode && activeTab === "retrieval" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-              {/* BM25 Chunks */}
-              <div className="border border-gray-150 dark:border-gray-800 rounded-lg p-4 bg-gray-50/50 dark:bg-white/[0.01]">
-                <h4 className="text-xs font-bold mb-3 text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
-                  🔍 BM25 (Lexical Search)
-                </h4>
-                <div className="flex flex-col gap-2">
-                  {comparison.bm25_sources.length > 0 ? (
-                    comparison.bm25_sources.map((source, idx) => (
-                      <SourceReference
-                        key={idx}
-                        source={source}
-                        index={idx}
-                        onOpenFile={onOpenFile}
-                      />
-                    ))
-                  ) : (
-                    <span className="text-xs text-gray-400">Tidak ada file yang dicocokkan.</span>
-                  )}
-                </div>
-              </div>
+            <div className="pt-2">
+              {/* Retrieval Statistics */}
+              <RetrievalStatistics
+                bm25Count={comparison.bm25_sources.length}
+                indobertCount={comparison.indobert_sources.length}
+              />
 
-              {/* IndoBERT Chunks */}
-              <div className="border border-gray-150 dark:border-gray-800 rounded-lg p-4 bg-gray-50/50 dark:bg-white/[0.01]">
-                <h4 className="text-xs font-bold mb-3 text-purple-600 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1">
-                  🧠 IndoBERT (Semantic Search)
-                </h4>
-                <div className="flex flex-col gap-2">
-                  {comparison.indobert_sources.length > 0 ? (
-                    comparison.indobert_sources.map((source, idx) => (
-                      <SourceReference
-                        key={idx}
-                        source={source}
-                        index={idx}
-                        onOpenFile={onOpenFile}
-                      />
-                    ))
-                  ) : (
-                    <span className="text-xs text-gray-400">Tidak ada file yang dicocokkan.</span>
-                  )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* BM25 Chunks */}
+                <div className="border border-gray-150 dark:border-gray-800 rounded-lg p-4 bg-gray-50/50 dark:bg-white/[0.01]">
+                  <h4 className="text-xs font-bold mb-3 text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
+                    <BookOpen size={12} />
+                    BM25 (Lexical Search)
+                  </h4>
+                  <div className="flex flex-col gap-2">
+                    {comparison.bm25_sources.length > 0 ? (
+                      comparison.bm25_sources.map((source, idx) => (
+                        <SourceReference
+                          key={idx}
+                          source={source}
+                          index={idx}
+                          onOpenFile={onOpenFile}
+                        />
+                      ))
+                    ) : (
+                      <span className="text-xs text-gray-400">Tidak ada file yang dicocokkan.</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* IndoBERT Chunks */}
+                <div className="border border-gray-150 dark:border-gray-800 rounded-lg p-4 bg-gray-50/50 dark:bg-white/[0.01]">
+                  <h4 className="text-xs font-bold mb-3 text-purple-600 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1">
+                    <BookOpen size={12} />
+                    IndoBERT (Semantic Search)
+                  </h4>
+                  <div className="flex flex-col gap-2">
+                    {comparison.indobert_sources.length > 0 ? (
+                      comparison.indobert_sources.map((source, idx) => (
+                        <SourceReference
+                          key={idx}
+                          source={source}
+                          index={idx}
+                          onOpenFile={onOpenFile}
+                        />
+                      ))
+                    ) : (
+                      <span className="text-xs text-gray-400">Tidak ada file yang dicocokkan.</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -361,7 +372,8 @@ export default function AnswerCard({
             <div className="pt-2 animate-fade-in">
               <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-5">
                 <h4 className="text-xs font-bold mb-3 text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
-                  📊 Analisis Perbandingan Akurasi AI
+                  <BookOpen size={12} />
+                  Analisis Perbandingan Akurasi AI
                 </h4>
                 <div className="prose dark:prose-invert max-w-none text-neutral-800 dark:text-neutral-200">
                   {renderFormattedAnswer(comparison.evaluation)}
