@@ -252,7 +252,7 @@ export default function AnswerCard({
       </div>
 
       {!isCollapsed && (
-        <div className="px-5 py-4 animate-slide-down overflow-y-auto">
+        <div className="px-5 py-4 animate-slide-down">
           {/* Compare Tabs */}
           {isCompareMode && (
             <div className="flex border-b border-gray-200 dark:border-gray-800 mb-4 gap-4">
