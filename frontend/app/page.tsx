@@ -149,9 +149,6 @@ export default function Home() {
   const [selectedStartLine, setSelectedStartLine] = useState<number | undefined>(undefined);
   const [selectedEndLine, setSelectedEndLine] = useState<number | undefined>(undefined);
 
-  // Layout & scroll triggers
-  const [layoutChangeTrigger, setLayoutChangeTrigger] = useState(0);
-
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatHistoryRef = useRef<HTMLDivElement>(null);
 
@@ -162,21 +159,11 @@ export default function Home() {
       }
     };
 
-    scrollToBottom();
-    
-    // Adjust scroll at intervals to account for tab changes, image loads, and CSS transition/render delays
-    const t1 = setTimeout(scrollToBottom, 50);
-    const t2 = setTimeout(scrollToBottom, 150);
-    const t3 = setTimeout(scrollToBottom, 300);
-    const t4 = setTimeout(scrollToBottom, 500);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-    };
-  }, [history, isLoading, layoutChangeTrigger]);
+    // Only scroll on new messages, not on layout changes
+    if (isLoading || history.length > 0) {
+      scrollToBottom();
+    }
+  }, [history.length, isLoading]); // Removed layoutChangeTrigger to prevent unnecessary scrolls
 
   // Check status on load
   useEffect(() => {
@@ -335,10 +322,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             {isRepoReady && fileTree.length > 0 && (
               <button
-                onClick={() => {
-                  setIsSidebarOpen(!isSidebarOpen);
-                  setLayoutChangeTrigger(prev => prev + 1);
-                }}
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 className="p-2 rounded-lg border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-600 dark:text-gray-400 cursor-pointer"
                 title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
               >
@@ -452,10 +436,6 @@ export default function Home() {
                 setSelectedFilePath(filePath);
                 setSelectedStartLine(startLine);
                 setSelectedEndLine(endLine);
-              }}
-              onToggle={() => {
-                // Adjust scroll on collapse/expand
-                setLayoutChangeTrigger(prev => prev + 1);
               }}
               isCollapsed={expandedAnswerId !== null && expandedAnswerId !== pair.id}
               onCollapsedChange={(collapsed) => {

@@ -19,7 +19,6 @@ export interface AnswerCardProps {
   sources: SourceReferenceData[];
   confidence: number;
   onOpenFile?: (filePath: string, startLine: number, endLine: number) => void;
-  onToggle?: () => void;
   mode?: string;
   comparison?: {
     bm25_sources: SourceReferenceData[];
@@ -188,7 +187,6 @@ export default function AnswerCard({
   sources,
   confidence,
   onOpenFile,
-  onToggle,
   mode = "bm25",
   comparison = null,
   isCollapsed: controlledCollapsed,
@@ -199,14 +197,6 @@ export default function AnswerCard({
 
   // Use controlled collapsed state if provided, otherwise use internal state
   const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
-
-  useEffect(() => {
-    if (onToggle && !isCollapsed) {
-      setTimeout(() => {
-        onToggle();
-      }, 50);
-    }
-  }, [activeTab, onToggle, isCollapsed]);
 
   const confidencePercent = Math.round(confidence * 100);
   const confidenceClasses = getConfidenceLevel(confidence);
@@ -219,13 +209,6 @@ export default function AnswerCard({
       onCollapsedChange(nextCollapsed);
     } else {
       setInternalCollapsed(nextCollapsed);
-    }
-    
-    if (onToggle) {
-      // Wait a tiny fraction of a second for DOM layout to adjust before scrolling
-      setTimeout(() => {
-        onToggle();
-      }, 50);
     }
   };
 

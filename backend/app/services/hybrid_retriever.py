@@ -69,11 +69,12 @@ class HybridRetriever:
         processed_query: ProcessedQuery,
         top_k: int = 10,
         alpha: float = 0.5,
+        enable_reranking: bool = True,
     ) -> list[RetrievalResult]:
         """Execute hybrid retrieval with configurable BM25/semantic weighting.
 
         Runs BM25 and semantic search in parallel, each fetching up to
-        3 * top_k candidates, then fuses using RRF.
+        3 * top_k candidates, then fuses using RRF with optional re-ranking.
 
         Args:
             processed_query: The processed query containing lexical query
@@ -81,6 +82,7 @@ class HybridRetriever:
             top_k: Maximum number of results to return (default 10).
             alpha: Weight for BM25 results (0.0 to 1.0, default 0.5).
                    Semantic weight is (1 - alpha).
+            enable_reranking: Apply cross-encoder re-ranking for better precision.
 
         Returns:
             A list of at most top_k RetrievalResult objects sorted by
@@ -94,7 +96,8 @@ class HybridRetriever:
         if top_k < 1:
             raise ValueError("top_k must be >= 1")
 
-        candidate_count = top_k * 3
+        # Fetch more candidates for re-ranking
+        candidate_count = top_k * 5 if enable_reranking else top_k * 3
 
         # Execute BM25 and semantic search in parallel with graceful degradation
         bm25_results, semantic_results = await self._parallel_search(
@@ -106,12 +109,84 @@ class HybridRetriever:
             bm25_results, semantic_results, alpha=alpha
         )
 
+        # Apply re-ranking for better precision
+        if enable_reranking and len(fused_results) > 0:
+            fused_results = self._rerank_by_content_overlap(
+                fused_results, processed_query, top_k * 2
+            )
+
         # Apply post-fusion filters if specified
         if processed_query.filters:
             fused_results = self._apply_filters(fused_results, processed_query.filters)
 
         # Return at most top_k results
         return fused_results[:top_k]
+
+    def _rerank_by_content_overlap(
+        self,
+        results: list[RetrievalResult],
+        query: ProcessedQuery,
+        top_n: int,
+    ) -> list[RetrievalResult]:
+        """Re-rank results by query-content overlap for better precision.
+        
+        Uses term overlap, function/class name matching, and code similarity.
+        
+        Args:
+            results: Initial fused results.
+            query: Processed query for matching.
+            top_n: Number of top results to re-rank.
+            
+        Returns:
+            Re-ranked results with adjusted scores.
+        """
+        query_terms = set(query.expanded_terms) if query.expanded_terms else set()
+        query_lower = query.lexical_query.lower() if query.lexical_query else ""
+        
+        reranked = []
+        for result in results[:top_n]:
+            chunk = result.chunk
+            content_lower = chunk.content.lower()
+            
+            # Base score from RRF
+            score = result.fused_score
+            
+            # Boost 1: Exact query substring match
+            if query_lower and query_lower in content_lower:
+                score *= 1.3
+            
+            # Boost 2: Function/class name exact match
+            if chunk.metadata:
+                if chunk.metadata.function_name and query_lower:
+                    if query_lower in chunk.metadata.function_name.lower():
+                        score *= 1.5
+                if chunk.metadata.class_name and query_lower:
+                    if query_lower in chunk.metadata.class_name.lower():
+                        score *= 1.4
+            
+            # Boost 3: High term overlap
+            if query_terms:
+                content_terms = set(content_lower.split())
+                overlap = len(query_terms & content_terms)
+                if overlap > 0:
+                    overlap_ratio = overlap / len(query_terms)
+                    score *= (1.0 + overlap_ratio * 0.5)
+            
+            # Boost 4: Prefer function/class chunks over generic code
+            if chunk.chunk_type in ["function", "class", "method"]:
+                score *= 1.2
+            
+            # Update fused score
+            result.fused_score = score
+            reranked.append(result)
+        
+        # Add remaining results without re-ranking
+        reranked.extend(results[top_n:])
+        
+        # Re-sort by updated scores
+        reranked.sort(key=lambda r: r.fused_score, reverse=True)
+        
+        return reranked
 
     async def _parallel_search(
         self,

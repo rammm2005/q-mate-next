@@ -60,14 +60,15 @@ class BM25Engine:
         b: Document length normalization parameter (default 0.75, range [0, 1]).
     """
 
-    def __init__(self, k1: float = 1.5, b: float = 0.75) -> None:
+    def __init__(self, k1: float = 1.8, b: float = 0.75) -> None:
         """Initialize the BM25 engine with scoring parameters.
 
         Args:
-            k1: Term frequency saturation parameter. Higher values increase
-                the impact of term frequency. Must be > 0.
-            b: Document length normalization parameter. 0 means no length
-                normalization, 1 means full normalization. Must be in [0, 1].
+            k1: Term frequency saturation parameter (default 1.8 for better precision).
+                Higher values increase the impact of term frequency. Must be > 0.
+            b: Document length normalization parameter (default 0.75). 
+                0 means no length normalization, 1 means full normalization. 
+                Must be in [0, 1].
         """
         if k1 <= 0:
             raise ValueError("k1 must be greater than 0")

@@ -41,10 +41,10 @@ class IndoBERTRetriever:
         - Support for batch query processing
     """
 
-    def __init__(self, model_name: str = INDOBERT_MODEL_NAME, similarity_threshold: float = 0.0):
+    def __init__(self, model_name: str = INDOBERT_MODEL_NAME, similarity_threshold: float = 0.15):
         self.model_name = model_name
         self.model = None
-        self.similarity_threshold = similarity_threshold
+        self.similarity_threshold = similarity_threshold  # Raised from 0.0 to 0.15 for better precision
         self._load_model()
 
     def _load_model(self):
